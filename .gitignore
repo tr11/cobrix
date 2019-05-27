@@ -17,6 +17,7 @@ syntax: glob
 # idea
 .idea
 *.iml
+.attach_pid*
 
 # building
 target
