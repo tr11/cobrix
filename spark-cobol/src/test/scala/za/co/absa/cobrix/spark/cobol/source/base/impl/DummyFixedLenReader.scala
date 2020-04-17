@@ -19,10 +19,15 @@ package za.co.absa.cobrix.spark.cobol.source.base.impl
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
 import org.apache.commons.lang3.NotImplementedException
-import za.co.absa.cobrix.spark.cobol.reader.FixedLenReader
+import za.co.absa.cobrix.cobol.reader.index.entry.SparseIndexEntry
+import za.co.absa.cobrix.cobol.reader.stream.SimpleStream
+import za.co.absa.cobrix.spark.cobol.reader.Reader
 import za.co.absa.cobrix.spark.cobol.schema.CobolSchema
 
-class DummyFixedLenReader(sparkSchema: StructType, cobolSchema: CobolSchema, data: List[Map[String, Option[String]]])(invokeOnTraverse: () => Unit) extends FixedLenReader with Serializable {
+import scala.collection.mutable.ArrayBuffer
+
+class DummyFixedLenReader(sparkSchema: StructType, cobolSchema: CobolSchema, data: List[Map[String, Option[String]]])(invokeOnTraverse: () => Unit)
+extends Reader with Serializable {
   def getCobolSchema: CobolSchema = cobolSchema
 
   def getSparkSchema: StructType = sparkSchema
@@ -34,9 +39,16 @@ class DummyFixedLenReader(sparkSchema: StructType, cobolSchema: CobolSchema, dat
   def getRowWithSchemaIterator(binaryData: Array[Byte]): Iterator[Row] = {
     throw new NotImplementedException("")
   }
-  
-  def getRowIterator(binaryData: Array[Byte]): Iterator[Row] = {
-    
+
+  override def getRecordIterator(binaryData: SimpleStream, startingFileOffset: Long,
+                                 fileNumber: Int, startingRecordIndex: Long): Iterator[Seq[Any]] = {
+    Nil.iterator
+  }
+
+  override def getRowIterator(binaryData: SimpleStream,
+                              startingFileOffset: Long = 0,
+                              fileNumber: Int = 0,
+                              startingRecordIndex: Long = 0): Iterator[Row] = {
     invokeOnTraverse()
     
     val recordsValues = for (record <- data) yield {
@@ -55,4 +67,12 @@ class DummyFixedLenReader(sparkSchema: StructType, cobolSchema: CobolSchema, dat
   override def getRecordStartOffset: Int = 0
 
   override def getRecordEndOffset: Int = 0
+
+  override def isIndexGenerationNeeded: Boolean = false
+
+  override def isRdwBigEndian: Boolean = false
+
+  override def generateIndex(binaryData: SimpleStream, fileNumber: Int, isRdwBigEndian: Boolean): ArrayBuffer[SparseIndexEntry] = {
+    new ArrayBuffer[SparseIndexEntry]
+  }
 }

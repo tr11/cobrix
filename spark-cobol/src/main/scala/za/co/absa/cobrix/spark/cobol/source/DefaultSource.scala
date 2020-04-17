@@ -22,7 +22,7 @@ import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{SQLContext, SparkSession}
 import org.slf4j.LoggerFactory
 import za.co.absa.cobrix.cobol.parser.encoding.codepage.CodePage
-import za.co.absa.cobrix.spark.cobol.reader.{FixedLenNestedReader, FixedLenReader, Reader, ReaderFactory, VarLenNestedReader, VarLenReader}
+import za.co.absa.cobrix.spark.cobol.reader.{FixedLenReader, Reader, VarLenReader}
 import za.co.absa.cobrix.cobol.reader.parameters.ReaderParameters
 import za.co.absa.cobrix.spark.cobol.source.copybook.CopybookContentLoader
 import za.co.absa.cobrix.spark.cobol.parameters.CobolParametersParser._
@@ -37,8 +37,7 @@ import za.co.absa.cobrix.spark.cobol.utils.{BuildProperties, HDFSUtils}
 class DefaultSource
   extends RelationProvider
     with SchemaRelationProvider
-    with DataSourceRegister
-    with ReaderFactory {
+    with DataSourceRegister {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -62,9 +61,6 @@ class DefaultSource
       cobolParameters.debugIgnoreFileSize)(sqlContext)
   }
 
-  //TODO fix with the correct implementation once the correct Reader hierarchy is put in place.
-  override def buildReader(spark: SparkSession, parameters: Map[String, String]): FixedLenReader = null
-
   /**
     * Builds one of two Readers, depending on the parameters.
     *
@@ -85,7 +81,7 @@ class DefaultSource
   private def createFixedLengthReader(parameters: CobolParameters, spark: SparkSession): FixedLenReader = {
 
     val copybookContent = CopybookContentLoader.load(parameters, spark.sparkContext.hadoopConfiguration)
-    new FixedLenNestedReader(copybookContent,
+    new FixedLenReader(copybookContent,
       parameters.isEbcdic,
       getCodePage(parameters.ebcdicCodePage, parameters.ebcdicCodePageClass),
       parameters.floatingPointFormat,
@@ -109,7 +105,7 @@ class DefaultSource
 
 
     val copybookContent = CopybookContentLoader.load(parameters, spark.sparkContext.hadoopConfiguration)
-    new VarLenNestedReader(
+    new VarLenReader(
       copybookContent, getReaderProperties(parameters, spark)
 
     )

@@ -16,11 +16,18 @@
 
 package za.co.absa.cobrix.spark.cobol.reader
 
+import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.StructType
+import za.co.absa.cobrix.cobol.reader.stream.SimpleStream
 import za.co.absa.cobrix.cobol.reader.{Reader => CobolReader}
 
 
 /** The abstract class for Cobol all data readers from various sources */
 trait Reader extends CobolReader {
   def getSparkSchema: StructType
+
+  def getRowIterator(binaryData: SimpleStream,
+                     startingFileOffset: Long,
+                     fileNumber: Int,
+                     startingRecordIndex: Long): Iterator[Row]
 }

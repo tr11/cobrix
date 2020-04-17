@@ -23,7 +23,7 @@ import org.apache.spark.SparkException
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
-import za.co.absa.cobrix.spark.cobol.reader.FixedLenReader
+import za.co.absa.cobrix.spark.cobol.reader.{FixedLenReader, Reader}
 import za.co.absa.cobrix.spark.cobol.schema.CobolSchema
 import za.co.absa.cobrix.spark.cobol.source.base.SparkCobolTestBase
 import za.co.absa.cobrix.spark.cobol.source.base.impl.{DummyCobolSchema, DummyFixedLenReader}
@@ -58,7 +58,7 @@ class CobolRelationSpec extends SparkCobolTestBase with Serializable {
   behavior of "CobolRelation"
 
   it should "return an RDD[Row] if data are correct" in {
-    val testReader: FixedLenReader = new DummyFixedLenReader(sparkSchema, cobolSchema, testData)(() => Unit)
+    val testReader: Reader = new DummyFixedLenReader(sparkSchema, cobolSchema, testData)(() => Unit)
     val relation = new CobolRelation(copybookFile.getParentFile.getAbsolutePath,
       testReader,
       localityParams = localityParams,
@@ -82,7 +82,7 @@ class CobolRelationSpec extends SparkCobolTestBase with Serializable {
 
   it should "manage exceptions from Reader" in {
     val exceptionMessage = "exception expected message"
-    val testReader: FixedLenReader = new DummyFixedLenReader(sparkSchema, cobolSchema, testData)(() => throw new Exception(exceptionMessage))
+    val testReader: Reader = new DummyFixedLenReader(sparkSchema, cobolSchema, testData)(() => throw new Exception(exceptionMessage))
     val relation = new CobolRelation(copybookFile.getParentFile.getAbsolutePath,
       testReader,
       localityParams = localityParams,
@@ -97,7 +97,7 @@ class CobolRelationSpec extends SparkCobolTestBase with Serializable {
   it should "manage records with missing fields" in {
     val absentField = "absentField"
     val modifiedSparkSchema = sparkSchema.add(StructField(absentField, StringType, false))
-    val testReader: FixedLenReader = new DummyFixedLenReader(modifiedSparkSchema, cobolSchema, testData)(() => Unit)
+    val testReader: Reader = new DummyFixedLenReader(modifiedSparkSchema, cobolSchema, testData)(() => Unit)
     val relation = new CobolRelation(copybookFile.getParentFile.getAbsolutePath,
       testReader,
       localityParams = localityParams,

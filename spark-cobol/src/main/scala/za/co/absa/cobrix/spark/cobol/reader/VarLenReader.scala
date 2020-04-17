@@ -17,45 +17,53 @@
 package za.co.absa.cobrix.spark.cobol.reader
 
 import org.apache.spark.sql.Row
-import za.co.absa.cobrix.cobol.reader.index.entry.SparseIndexEntry
+import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.sql.types.StructType
+import za.co.absa.cobrix.cobol.reader.{VarLenReader => CobolVarLenReader}
+import za.co.absa.cobrix.cobol.reader.parameters.ReaderParameters
+import za.co.absa.cobrix.cobol.reader.iterator.{VarLenHierarchicalIterator, VarLenNestedIterator}
 import za.co.absa.cobrix.cobol.reader.stream.SimpleStream
-import scala.collection.mutable.ArrayBuffer
+import za.co.absa.cobrix.spark.cobol.schema.CobolSchema
 
 
-/** The abstract class for Cobol data readers from various sequential sources (e.g. variable size EBCDIC records) */
-trait VarLenReader extends Reader with Serializable {
+/**
+  *  The Cobol data reader for variable length records that gets input binary data as a stream and produces nested structure schema
+  *
+  * @param copybookContents      The contents of a copybook.
+  * @param readerProperties      Additional properties for customizing the reader.
+  */
+@throws(classOf[IllegalArgumentException])
+final class VarLenReader(copybookContents: Seq[String],
+                         readerProperties: ReaderParameters
+) extends CobolVarLenReader[GenericRow](copybookContents, readerProperties, new RowHandler())
+  with Reader {
 
-  /** Returns true if index generation is requested */
-  def isIndexGenerationNeeded: Boolean
+  class RowIterator(private val iterator: Iterator[Seq[Any]]) extends Iterator[Row] {
+    override def hasNext: Boolean = iterator.hasNext
 
-  /** Returns true if RDW header of variable length files is big endian */
-  def isRdwBigEndian: Boolean
+    @throws(classOf[IllegalStateException])
+    override def next(): Row = Row.fromSeq(iterator.next())
+  }
 
-  /**
-    * Returns a file iterator between particular offsets. This is for faster traversal of big binary files
-    *
-    * @param binaryData          A stream positioned at the beginning of the intended file portion to read
-    * @param startingFileOffset  An offset of the file where parsing should be started
-    * @param fileNumber          A file number uniquely identified a particular file of the data set
-    * @param startingRecordIndex A starting record index of the data
-    * @return An iterator of Spark Row objects
-    *
-    */
-  @throws(classOf[Exception]) def getRowIterator(binaryData: SimpleStream,
-                                                 startingFileOffset: Long,
-                                                 fileNumber: Int,
-                                                 startingRecordIndex: Long): Iterator[Row]
 
-  /**
-    * Traverses the data sequentially as fast as possible to generate record index.
-    * This index will be used to distribute workload of the conversion.
-    *
-    * @param binaryData A stream of input binary data
-    * @param fileNumber A file number uniquely identified a particular file of the data set
-    * @return An index of the file
-    *
-    */
-  @throws(classOf[Exception]) def generateIndex(binaryData: SimpleStream,
-                                                fileNumber: Int,
-                                                isRdwBigEndian: Boolean): ArrayBuffer[SparseIndexEntry]
+  override def getCobolSchema: CobolSchema = CobolSchema.fromBaseReader(cobolSchema)
+
+  override def getSparkSchema: StructType = getCobolSchema.getSparkSchema
+
+  def getRowIterator(binaryData: SimpleStream,
+                     startingFileOffset: Long,
+                     fileNumber: Int,
+                     startingRecordIndex: Long): Iterator[Row] =
+    if (cobolSchema.copybook.isHierarchical) {
+      new RowIterator(
+        new VarLenHierarchicalIterator(cobolSchema.copybook, binaryData, readerProperties, recordHeaderParser,
+          fileNumber, startingRecordIndex, startingFileOffset, new RowHandler())
+      )
+    } else {
+      new RowIterator(
+        new VarLenNestedIterator(cobolSchema.copybook, binaryData, readerProperties, recordHeaderParser,
+          recordExtractor(binaryData, cobolSchema.copybook),
+          fileNumber, startingRecordIndex, startingFileOffset, cobolSchema.segmentIdPrefix, new RowHandler())
+      )
+    }
 }

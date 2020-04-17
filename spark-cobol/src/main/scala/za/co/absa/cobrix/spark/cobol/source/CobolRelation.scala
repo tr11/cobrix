@@ -27,11 +27,13 @@ import org.apache.spark.sql.{Row, SQLContext}
 import org.slf4j.LoggerFactory
 import za.co.absa.cobrix.spark.cobol.reader.{FixedLenReader, Reader, VarLenReader}
 import za.co.absa.cobrix.cobol.reader.index.entry.SparseIndexEntry
+import za.co.absa.cobrix.cobol.reader.stream.StreamFromBytes
 import za.co.absa.cobrix.spark.cobol.source.index.IndexBuilder
 import za.co.absa.cobrix.spark.cobol.source.parameters.LocalityParameters
 import za.co.absa.cobrix.spark.cobol.source.scanners.CobolScanners
 import za.co.absa.cobrix.spark.cobol.source.types.FileWithOrder
 import za.co.absa.cobrix.spark.cobol.utils.FileUtils
+
 import scala.util.control.NonFatal
 
 
@@ -118,9 +120,9 @@ class CobolRelation(sourceDir: String,
     hadoopConf.getBoolean(FileInputFormat.INPUT_DIR_RECURSIVE, false)
   }
 
-  private[source] def parseRecords(reader: FixedLenReader, records: RDD[Array[Byte]]) = {
+  private[source] def parseRecords(reader: Reader, records: RDD[Array[Byte]]) = {
     records.flatMap(record => {
-      val it = reader.getRowIterator(record)
+      val it = reader.getRowIterator(new StreamFromBytes(record), 0, 0, 0)
       for (parsedRecord <- it) yield {
         parsedRecord
       }

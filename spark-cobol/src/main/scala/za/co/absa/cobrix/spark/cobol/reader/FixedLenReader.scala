@@ -17,9 +17,61 @@
 package za.co.absa.cobrix.spark.cobol.reader
 
 import org.apache.spark.sql.Row
+import org.apache.spark.sql.catalyst.expressions.GenericRow
+import org.apache.spark.sql.types.StructType
+import za.co.absa.cobrix.cobol.parser.decoders.FloatingPointFormat.FloatingPointFormat
+import za.co.absa.cobrix.cobol.parser.encoding.codepage.CodePage
+import za.co.absa.cobrix.cobol.parser.policies.StringTrimmingPolicy.StringTrimmingPolicy
+import za.co.absa.cobrix.cobol.reader.policies.SchemaRetentionPolicy.SchemaRetentionPolicy
+import za.co.absa.cobrix.cobol.reader.{FixedLenReader => CobolFixedLenReader}
+import za.co.absa.cobrix.cobol.reader.parameters.ReaderParameters
+import za.co.absa.cobrix.cobol.reader.stream.SimpleStream
+import za.co.absa.cobrix.spark.cobol.schema.CobolSchema
 
 
-/** The abstract class for Cobol block (fixed length records) data readers from various sources */
-trait FixedLenReader extends Reader with Serializable {
-  @throws(classOf[Exception]) def getRowIterator(binaryData: Array[Byte]): Iterator[Row]
+/**
+  *  The Cobol data reader that produces nested structure schema
+  *
+  * @param copyBookContents    A copybook contents.
+  * @param startOffset         Specifies the number of bytes at the beginning of each record that can be ignored.
+  * @param endOffset           Specifies the number of bytes at the end of each record that can be ignored.
+  * @param schemaRetentionPolicy              Specifies a policy to transform the input schema. The default policy is to keep the schema exactly as it is in the copybook.
+  */
+final class FixedLenReader(copyBookContents: Seq[String],
+                           isEbcdic: Boolean = true,
+                           ebcdicCodePage: CodePage,
+                           floatingPointFormat: FloatingPointFormat,
+                           startOffset: Int = 0,
+                           endOffset: Int = 0,
+                           schemaRetentionPolicy: SchemaRetentionPolicy,
+                           stringTrimmingPolicy: StringTrimmingPolicy,
+                           dropGroupFillers: Boolean,
+                           nonTerminals: Seq[String],
+                           occursMappings: Map[String, Map[String, Int]],
+                           readerProperties: ReaderParameters
+                                 )
+  extends CobolFixedLenReader[GenericRow](
+    copyBookContents, isEbcdic, ebcdicCodePage, floatingPointFormat,
+    startOffset, endOffset, schemaRetentionPolicy, stringTrimmingPolicy,
+    dropGroupFillers, nonTerminals, occursMappings, readerProperties,
+    new RowHandler()
+  ) with Reader with Serializable {
+
+  class RowIterator(private val iterator: Iterator[Seq[Any]]) extends Iterator[Row] {
+    override def hasNext: Boolean = iterator.hasNext
+
+    @throws(classOf[IllegalStateException])
+    override def next(): Row = Row.fromSeq(iterator.next())
+  }
+
+  override def getCobolSchema: CobolSchema = CobolSchema.fromBaseReader(cobolSchema)
+
+  override def getSparkSchema: StructType = getCobolSchema.getSparkSchema
+
+  override def getRowIterator(binaryData: SimpleStream,
+                     startingFileOffset: Long = 0,
+                     fileNumber: Int = 0,
+                     startingRecordIndex: Long = 0): Iterator[Row] = {
+    new RowIterator(getRecordIterator(binaryData))
+  }
 }

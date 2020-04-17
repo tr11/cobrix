@@ -28,8 +28,9 @@ import za.co.absa.cobrix.cobol.parser.encoding.codepage.CodePage
 import za.co.absa.cobrix.cobol.parser.policies.StringTrimmingPolicy
 import za.co.absa.cobrix.cobol.reader.parameters.ReaderParameters
 import za.co.absa.cobrix.cobol.reader.policies.SchemaRetentionPolicy
+import za.co.absa.cobrix.cobol.reader.stream.StreamFromBytes
 import za.co.absa.cobrix.spark.cobol.parameters.CobolParametersParser._
-import za.co.absa.cobrix.spark.cobol.reader.{FixedLenNestedReader, FixedLenReader}
+import za.co.absa.cobrix.spark.cobol.reader.FixedLenReader
 import za.co.absa.cobrix.spark.cobol.source.parameters.CobolParametersValidator
 
 import scala.collection.JavaConverters.asScalaBufferConverter
@@ -43,7 +44,7 @@ object CobolStreamer {
   
   def getReader(implicit ssc: StreamingContext): FixedLenReader = {
     val copybooks = Seq(loadCopybookFromHDFS(ssc.sparkContext.hadoopConfiguration, ssc.sparkContext.getConf.get(PARAM_COPYBOOK_PATH)))
-    new FixedLenNestedReader(copybooks,
+    new FixedLenReader(copybooks,
       isEbcdic = true,
       CodePage.getCodePageByName("common"),
       floatingPointFormat = FloatingPointFormat.IBM,
@@ -65,7 +66,7 @@ object CobolStreamer {
       ssc
         .binaryRecordsStream(ssc.sparkContext.getConf.get(PARAM_SOURCE_PATH), reader.getCobolSchema.getRecordSize)
         .flatMap(record => {          
-          val it = reader.getRowIterator(record)
+          val it = reader.getRowIterator(new StreamFromBytes(record))
           for (parsedRecord <- it) yield {                        
             new GenericRowWithSchema(parsedRecord.toSeq.toArray, reader.getSparkSchema)
           }

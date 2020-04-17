@@ -17,7 +17,11 @@
 
 package za.co.absa.cobrix.cobol.reader
 
+import za.co.absa.cobrix.cobol.reader.index.entry.SparseIndexEntry
 import za.co.absa.cobrix.cobol.reader.schema.CobolSchema
+import za.co.absa.cobrix.cobol.reader.stream.SimpleStream
+
+import scala.collection.mutable.ArrayBuffer
 
 /** The abstract class for Cobol all data readers from various sources */
 trait Reader extends Serializable {
@@ -29,4 +33,39 @@ trait Reader extends Serializable {
   def getRecordStartOffset: Int
 
   def getRecordEndOffset: Int
+
+  /** Returns true if index generation is requested */
+  def isIndexGenerationNeeded: Boolean
+
+  /** Returns true if RDW header of variable length files is big endian */
+  def isRdwBigEndian: Boolean
+
+  /**
+   * Returns a file iterator between particular offsets. This is for faster traversal of big binary files
+   *
+   * @param binaryData          A stream positioned at the beginning of the intended file portion to read
+   * @param startingFileOffset  An offset of the file where parsing should be started
+   * @param fileNumber          A file number uniquely identified a particular file of the data set
+   * @param startingRecordIndex A starting record index of the data
+   * @return An iterator of Spark Row objects
+   *
+   */
+  @throws(classOf[Exception]) def getRecordIterator(binaryData: SimpleStream,
+                                                    startingFileOffset: Long,
+                                                    fileNumber: Int,
+                                                    startingRecordIndex: Long): Iterator[Seq[Any]]
+
+  /**
+   * Traverses the data sequentially as fast as possible to generate record index.
+   * This index will be used to distribute workload of the conversion.
+   *
+   * @param binaryData A stream of input binary data
+   * @param fileNumber A file number uniquely identified a particular file of the data set
+   * @return An index of the file
+   *
+   */
+  @throws(classOf[Exception]) def generateIndex(binaryData: SimpleStream,
+                                                fileNumber: Int,
+                                                isRdwBigEndian: Boolean): ArrayBuffer[SparseIndexEntry]
+
 }
